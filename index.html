@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>소방안전</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="app">
+        <header class="app-header">
+            <h1>소방안전관리자2급</h1>
+            <button id="settings-button" class="icon-button">⚙️</button>
+        </header>
+
+        <!-- 설정 Modal -->
+        <div id="settings-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span id="close-modal-button" class="close-button">&times;</span>
+                <h2>⚙️ 설정</h2>
+                <div id="book-selector-container">
+                    <label for="book-select">Book 선택:</label>
+                    <select id="book-select" onchange="selectBook(this.value)"></select>
+                    <p id="total-problems-info"></p>
+                    <p id="local-storage-status" class="storage-info"></p>
+                </div>
+                <hr>
+                <div class="reset-options">
+                    <button id="reset-current-book-button">현재 Book 초기화</button>
+                    <button id="reset-all-button" class="danger">전체 초기화</button>
+                </div>
+                <p id="load-status"></p>
+            </div>
+        </div>
+
+        <section id="quiz-section">
+            <div class="quiz-header-container">
+                <button id="prev-book-button" class="nav-button">⬅️</button>
+                <h2 id="quiz-header"></h2>
+                <button id="next-book-button" class="nav-button">➡️</button>
+            </div>
+            <div id="problem-navigation">
+                <span id="current-problem-info"></span>
+            </div>
+
+            <div id="image-container">
+                <img id="image_a" src="" alt="문제 이미지" draggable="false" style="max-width: 100%; height: auto;"> 
+                <div id="swipe-overlay"></div>
+            </div>
+
+            <div id="options-container" style="display: flex; justify-content: space-around;">
+                <button class="option-button" data-option="1">1번</button>
+                <button class="option-button" data-option="2">2번</button>
+                <button class="option-button" data-option="3">3번</button>
+                <button class="option-button" data-option="4">4번</button>
+            </div>
+
+            <div id="result-container" style="display:none;">
+                <p id="result-message"></p>
+                <img id="image_b" src="" alt="해설 이미지" style="display:none; max-width: 100%; height: auto;">
+            </div>
+            
+            <button id="next-button" onclick="nextProblem()" style="display:none;">다음 문제 ➡️</button>
+        </section>
+
+        <section id="progress-summary-section">
+            <h2>전체 학습 현황</h2>
+            <div id="progress-summary-container">
+                <!-- 학습 현황이 여기에 동적으로 추가됩니다. -->
+            </div>
+        </section>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
