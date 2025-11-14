@@ -1,6 +1,33 @@
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+    apiKey: "AIzaSyCIGhIB4Ju-EriiODG6kryPG0L54OGKTRI",
+    authDomain: "sobanglevel2.firebaseapp.com",
+    projectId: "sobanglevel2",
+    storageBucket: "sobanglevel2.firebasestorage.app",
+    messagingSenderId: "1000021218348",
+    appId: "1:1000021218348:web:87881240640481caea6d89",
+    measurementId: "G-80TRB9F2KT",
+    databaseURL: "https://sobanglevel2-default-rtdb.asia-southeast1.firebasedatabase.app/"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
 let quizData = []; // 모든 문제 데이터
 let currentBookProblems = []; // 현재 선택된 book의 문제 데이터
 let bookList = []; // 전체 Book 목록
+let currentUser = null; // 현재 로그인한 사용자 정보
 let currentProblemIndex = 0; // 현재 풀고 있는 문제의 인덱스
 let isAnswered = false; // 현재 문제가 풀이되었는지 여부
 
@@ -32,92 +59,150 @@ const resetAllButton = document.getElementById('reset-all-button');
 const resetCurrentBookButton = document.getElementById('reset-current-book-button');
 const prevBookButton = document.getElementById('prev-book-button');
 const nextBookButton = document.getElementById('next-book-button');
+const loginIcon = document.getElementById('login-icon');
+const userStatus = document.getElementById('user-status');
+const logoutButton = document.getElementById('logout-button');
 
 // =========================================================================
 // 🚀 초기화 및 이벤트 리스너
 // =========================================================================
 
-document.addEventListener('DOMContentLoaded', loadData); // 페이지 로드 시 데이터 자동 로드
+document.addEventListener('DOMContentLoaded', () => loadData(null)); // 페이지 로드 시 비로그인 상태로 데이터 로드
+loginIcon.addEventListener('click', () => window.location.href = 'login.html');
 settingsButton.addEventListener('click', () => settingsModal.style.display = 'block');
 closeModalButton.addEventListener('click', () => settingsModal.style.display = 'none');
 resetAllButton.addEventListener('click', resetAllLearning);
 resetCurrentBookButton.addEventListener('click', resetCurrentBookLearning);
 prevBookButton.addEventListener('click', prevBook);
 nextBookButton.addEventListener('click', nextBook);
-
+nextButton.addEventListener('click', nextProblem);
+bookSelect.addEventListener('change', () => selectBook(bookSelect.value));
+logoutButton.addEventListener('click', handleLogout);
 
 // =========================================================================
-// � 로컬 저장소 (LocalStorage) 관련 함수
+// 👤 Firebase 인증 관련 함수
 // =========================================================================
 
 /**
- * 로컬 저장소에서 저장된 학습 데이터를 불러옵니다.
- * @returns {Array} 저장된 문제 데이터 (없으면 빈 배열)
+ * 로그아웃 처리
  */
-function loadFromLocalStorage() {
-    const storedData = localStorage.getItem(STORAGE_KEY);
-    if (storedData) {
-        localStorageStatus.textContent = `✅ 저장된 학습 이력을 불러왔습니다.`;
-        return JSON.parse(storedData);
+async function handleLogout() {
+    try {
+        await signOut(auth);
+        alert('로그아웃 되었습니다.');
+    } catch (error) {
+        console.error("로그아웃 오류:", error);
+        alert(`로그아웃 실패: ${error.message}`);
+    }
+}
+
+/**
+ * 사용자 인증 상태 변경 감지
+ * 페이지 로드 시 사용자의 로그인 상태를 확인하고 UI를 업데이트합니다.
+ */
+onAuthStateChanged(auth, user => {
+    if (user) {
+        // 사용자가 로그인한 경우 (user 객체가 존재)
+        currentUser = user;
+        userStatus.style.display = 'inline-flex';
+        loginIcon.style.display = 'none';
+        loadData(currentUser.uid); // 사용자 ID로 데이터 로드
+    } else {
+        // 사용자가 로그아웃한 경우 (user 객체가 null)
+        currentUser = null;
+        userStatus.style.display = 'none';
+        loginIcon.style.display = 'inline-block';
+        loadData(null); // 비로그인 상태(로컬)로 데이터 로드
+    }
+});
+// =========================================================================
+// 💾 Firebase 데이터베이스 관련 함수
+// =========================================================================
+
+/**
+ * Firebase에서 학습 데이터를 불러옵니다.
+ * @param {string} userId - Firebase 사용자 UID
+ * @returns {Promise<Object|null>} 저장된 데이터 또는 null
+ */
+async function loadFromFirebase(userId) {
+    if (!userId) return null;
+    const dbRef = ref(db, `users/${userId}`);
+    const snapshot = await get(dbRef);
+    if (snapshot.exists()) {
+        localStorageStatus.textContent = `✅ Firebase에서 학습 이력을 불러왔습니다.`;
+        return snapshot.val();
     }
     localStorageStatus.textContent = `⭐ 새로운 학습을 시작합니다.`;
-    return [];
+    return null;
 }
 
 /**
- * 마지막으로 학습한 위치(Book, 문제 인덱스)를 로컬 저장소에서 불러옵니다.
- * @returns {Object|null} 저장된 위치 정보 또는 null
+ * Firebase에 문제 풀이 결과를 저장합니다.
+ * @param {string} userId - Firebase 사용자 UID
  */
-function loadLastState() {
-    const storedState = localStorage.getItem(`${STORAGE_KEY}_LastState`);
-    return storedState ? JSON.parse(storedState) : null;
+function saveProgressToFirebase(userId) {
+    if (!userId) return;
+    const progressData = quizData.map(p => ({
+        book: p.book,
+        num: p.num,
+        testResult: p.testResult
+    })).filter(p => p.testResult !== null); // 푼 문제만 저장
+
+    set(ref(db, `users/${userId}/progress`), progressData)
+        .then(() => localStorageStatus.textContent = `💾 학습 결과가 Firebase에 저장되었습니다.`)
+        .catch(e => console.error("Firebase 저장 실패:", e));
 }
 
 /**
- * 현재의 전체 문제 데이터를 로컬 저장소에 저장합니다.
+ * Firebase에 마지막 학습 위치를 저장합니다.
+ * @param {string} userId - Firebase 사용자 UID
  */
-function saveToLocalStorage() {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(quizData));
-        localStorageStatus.textContent = `💾 학습 결과가 성공적으로 저장되었습니다.`;
-    } catch (e) {
-        console.error("로컬 저장소 저장 실패:", e);
-        localStorageStatus.textContent = `❌ 로컬 저장소 저장에 실패했습니다.`;
-    }
+function saveLastStateToFirebase(userId) {
+    if (!userId || currentBookProblems.length === 0 || currentProblemIndex < 0) return;
+    const lastState = {
+        lastBook: currentBookProblems[currentProblemIndex].book,
+        lastIndex: currentProblemIndex
+    };
+    set(ref(db, `users/${userId}/lastState`), lastState);
 }
-
-/**
- * 현재 학습 위치(Book, 문제 인덱스)를 로컬 저장소에 저장합니다.
- */
-function saveLastState() {
-    if (currentBookProblems.length > 0 && currentProblemIndex >= 0) {
-        const lastState = {
-            lastBook: currentBookProblems[currentProblemIndex].book,
-            lastIndex: currentProblemIndex
-        };
-        localStorage.setItem(`${STORAGE_KEY}_LastState`, JSON.stringify(lastState));
-    }
-}
-
 
 // =========================================================================
 // 🔄 데이터 로드 및 문제 풀이 관련 함수
 // =========================================================================
 
 /**
- * 1. JSON 파일을 불러오고 로컬 데이터와 병합하는 함수
+ * 1. JSON 파일을 불러오고 사용자 데이터와 병합하는 함수
+ * @param {string|null} userId - 로그인한 사용자의 UID, 비로그인 시 null
  */
-async function loadData() {
+async function loadData(userId) {
     const jsonFileName = JSON_FILE_NAME; 
     loadStatus.textContent = `데이터 (${jsonFileName})를 불러오는 중...`;
     
     try {
         const response = await fetch(jsonFileName); 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
         const remoteData = await response.json();
-        const localData = loadFromLocalStorage();
+        let userData = null;
+        let lastState = null;
+
+        if (userId) {
+            userData = await loadFromFirebase(userId);
+            if (userData) {
+                lastState = userData.lastState;
+            }
+        } else {
+            // 비로그인 시 로컬 저장소 사용 (선택적) 또는 초기화
+            quizData = [];
+            bookSelect.innerHTML = '<option>로그인 후 이용해주세요.</option>';
+            document.getElementById('quiz-section').style.display = 'none';
+            document.getElementById('progress-summary-section').style.display = 'none';
+            loadStatus.textContent = '로그인하여 학습을 시작하세요.';
+            return;
+        }
+
+        document.getElementById('quiz-section').style.display = 'block';
+        document.getElementById('progress-summary-section').style.display = 'block';
         
         // JSON 데이터를 기본 템플릿으로 설정
         let mergedData = remoteData.map(problem => ({
@@ -125,20 +210,22 @@ async function loadData() {
             testResult: null // 기본값 초기화
         }));
 
-        // 로컬 데이터와 병합: num이 일치하는 문제의 testResult를 로컬 데이터로 덮어씁니다.
-        const localDataMap = new Map(localData.map(p => [`${p.book}-${p.num}`, p.testResult]));
+        // Firebase 데이터와 병합
+        if (userData && userData.progress) {
+            const userProgressMap = new Map(userData.progress.map(p => [`${p.book}-${p.num}`, p.testResult]));
+            mergedData.forEach(problem => {
+                const key = `${problem.book}-${problem.num}`;
+                if (userProgressMap.has(key)) {
+                    problem.testResult = userProgressMap.get(key);
+                }
+            });
+        }
         
-        quizData = mergedData.map(problem => {
-            const key = `${problem.book}-${problem.num}`;
-            if (localDataMap.has(key)) {
-                problem.testResult = localDataMap.get(key);
-            }
-            return problem;
-        });
+        quizData = mergedData;
         
         loadStatus.textContent = `✅ 총 ${quizData.length}개의 문제를 성공적으로 불러왔습니다.`;
         
-        setupBookSelector(quizData);
+        setupBookSelector(quizData, lastState);
         updateProgressSummary(); // 학습 현황 업데이트
 
     } catch (error) {
@@ -149,8 +236,10 @@ async function loadData() {
 
 /**
  * 2. Book 선택 드롭다운 설정 및 첫 번째 Book 자동 선택 함수
+ * @param {Array} data - 전체 퀴즈 데이터
+ * @param {Object|null} lastState - 마지막 학습 위치 정보
  */
-function setupBookSelector(data) {
+function setupBookSelector(data, lastState = null) {
     bookList = [...new Set(data.map(item => item.book))].sort();
     
     bookSelect.innerHTML = ''; // 기존 옵션 클리어
@@ -168,8 +257,7 @@ function setupBookSelector(data) {
         bookSelect.appendChild(option);
     });
 
-    // 🎯 마지막 학습 위치 또는 첫 번째 Book 자동 선택
-    const lastState = loadLastState();
+    // 마지막 학습 위치 또는 첫 번째 Book 자동 선택
     let bookToSelect = bookList[0];
     let indexToSelect = null;
 
@@ -245,8 +333,8 @@ function displayProblem(index) {
         showPreviousResult(problem);
     }
 
-    // 🎯 현재 위치를 로컬 저장소에 저장
-    saveLastState();
+    // 현재 위치를 Firebase에 저장
+    if (currentUser) saveLastStateToFirebase(currentUser.uid);
 }
 
 /**
@@ -316,28 +404,29 @@ function checkAnswer(selectedButton) {
         message = `틀렸습니다. 정답은 ${correctAnswer}번입니다. 😥`;
         resultMessage.className = 'incorrect';
         problem.testResult = 'nok';
-        
-        // 오답 선택 버튼 강조
-        selectedButton.style.backgroundColor = 'red';
     }
     
-    // image_b (해설) 표시 (정답/오답 모두)
+    // 해설 이미지 표시
     imageB.src = IMAGE_BASE_PATH + problem.image_b;
     imageB.alt = `${problem.book} 해설 ${problem.num}`;
     imageB.style.display = 'block';
 
-    // 정답 버튼 강조
+    // 버튼 색상 변경
+    if (userAnswer !== correctAnswer) {
+        // 오답 선택 버튼 강조
+        selectedButton.style.backgroundColor = 'red';
+    }
     const correctButton = document.querySelector(`.option-button[data-option="${correctAnswer}"]`);
     if (correctButton) {
         correctButton.style.backgroundColor = '#007bff'; // 정답은 파란색으로 변경
     }
-
+    
     resultMessage.textContent = message;
     resultContainer.style.display = 'block';
     nextButton.style.display = 'block';
 
-    // 🎯 학습 결과를 로컬 저장소에 저장
-    saveToLocalStorage();
+    // 학습 결과를 Firebase에 저장
+    if (currentUser) saveProgressToFirebase(currentUser.uid);
     
     // 결과 반영 후 현재 문제 정보 및 정답률 업데이트
     const completedProblems = currentBookProblems.filter(p => p.testResult !== null).length;
@@ -410,16 +499,17 @@ function prevBook() {
  * 9. 전체 학습 기록 초기화
  */
 function resetAllLearning() {
+    if (!currentUser) {
+        alert("로그인 후 이용해주세요.");
+        return;
+    }
     if (confirm("정말로 모든 학습 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(`${STORAGE_KEY}_LastState`); // 마지막 학습 위치도 초기화
-        quizData = []; // 메모리에서도 데이터 초기화
-        
-        // UI 초기화 및 데이터 다시 로드
-        localStorageStatus.textContent = "학습 기록이 초기화되었습니다.";
-        loadStatus.textContent = "데이터를 다시 로드합니다...";
-        settingsModal.style.display = 'none';
-        loadData();
+        // Firebase에서 사용자 데이터 삭제
+        set(ref(db, `users/${currentUser.uid}`), null).then(() => {
+            alert("모든 학습 기록이 초기화되었습니다.");
+            settingsModal.style.display = 'none';
+            loadData(currentUser.uid); // 데이터 다시 로드
+        });
     }
 }
 
@@ -427,6 +517,11 @@ function resetAllLearning() {
  * 9-1. 현재 Book의 학습 기록 초기화
  */
 function resetCurrentBookLearning() {
+    if (!currentUser) {
+        alert("로그인 후 이용해주세요.");
+        return;
+    }
+
     const currentBookName = bookSelect.value;
     if (!currentBookName) return;
 
@@ -437,7 +532,7 @@ function resetCurrentBookLearning() {
             }
         });
 
-        saveToLocalStorage(); // 변경된 데이터 저장
+        saveProgressToFirebase(currentUser.uid); // 변경된 데이터 Firebase에 저장
         settingsModal.style.display = 'none'; // 모달 닫기
         updateProgressSummary(); // 하단 학습 현황 UI 업데이트
         selectBook(currentBookName, 0); // 현재 Book의 문제 목록 및 UI 새로고침 (0번 문제부터)

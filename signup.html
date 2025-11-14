@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>회원가입 - 소방안전관리자2급</title>
+    <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-box">
+            <a href="index.html" class="home-link"><h1>소방안전관리자2급</h1></a>
+            <h2>회원가입</h2>
+            <div class="input-group">
+                <label for="signup-name">이름</label>
+                <input type="text" id="signup-name" placeholder="이름" required>
+            </div>
+            <div class="input-group">
+                <label for="signup-email">이메일</label>
+                <input type="email" id="signup-email" placeholder="이메일" required>
+            </div>
+            <div class="input-group">
+                <label for="signup-password">비밀번호</label>
+                <input type="password" id="signup-password" placeholder="비밀번호 (6자 이상)" required>
+            </div>
+            <div class="input-group">
+                <label for="signup-password-confirm">비밀번호 확인</label>
+                <input type="password" id="signup-password-confirm" placeholder="비밀번호 확인" required>
+            </div>
+            <button id="signup-button">회원가입</button>
+            <p class="auth-switch">이미 계정이 있으신가요? <a href="login.html">로그인</a></p>
+            <p id="error-message" class="error-message"></p>
+        </div>
+    </div>
+    <script type="module" src="auth.js"></script>
+</body>
+</html>
