@@ -6,8 +6,8 @@ import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/1
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // 🎯 사용자 지정 변수
-const APP_VERSION = "v0.02";
-const JSON_FILE_NAME = "sobang-v0.01.json"; 
+const APP_VERSION = "v0.03";
+const JSON_FILE_NAME = "sobang-v0.02.json"; 
 const IMAGE_BASE_PATH = "/image/"; 
 
 // Your web app's Firebase configuration
@@ -229,7 +229,7 @@ async function loadData(userId) {
         
         quizData = mergedData;
         
-        loadStatus.textContent = `✅ 총 ${quizData.length}개의 문제를 성공적으로 불러왔습니다.`;
+        loadStatus.textContent = `DB파일 "${jsonFileName}"에서 총 ${quizData.length}개의 문제를 성공적으로 업로드 하였습니다.`;
         
         setupBookSelector(quizData, lastState);
         updateProgressSummary(); // 학습 현황 업데이트
