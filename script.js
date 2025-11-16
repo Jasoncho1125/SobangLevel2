@@ -6,7 +6,7 @@ import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/1
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // 🎯 사용자 지정 변수
-const APP_VERSION = "v0.04";
+const APP_VERSION = "v0.05";
 const JSON_FILE_NAME = "sobang-v0.03.json"; 
 const IMAGE_BASE_PATH = "/image/"; 
 
@@ -64,6 +64,7 @@ const nextBookButton = document.getElementById('next-book-button');
 const loginIcon = document.getElementById('login-icon');
 const userStatus = document.getElementById('user-status');
 const logoutButton = document.getElementById('logout-button');
+const settingsCloseButtonBottom = document.getElementById('settings-close-button-bottom');
 
 // =========================================================================
 // 🚀 초기화 및 이벤트 리스너
@@ -86,6 +87,7 @@ nextBookButton.addEventListener('click', nextBook);
 nextButton.addEventListener('click', nextProblem);
 bookSelect.addEventListener('change', () => selectBook(bookSelect.value));
 logoutButton.addEventListener('click', handleLogout);
+settingsCloseButtonBottom.addEventListener('click', () => settingsModal.style.display = 'none');
 
 // =========================================================================
 // 👤 Firebase 인증 관련 함수
@@ -572,6 +574,8 @@ function updateProgressSummary() {
 
     progressSummaryContainer.innerHTML = ''; // 기존 내용 초기화
 
+    const selectedBook = bookSelect.value; // 현재 선택된 Book 가져오기
+
     const books = [...new Set(quizData.map(item => item.book))].sort();
 
     books.forEach(bookName => {
@@ -586,6 +590,11 @@ function updateProgressSummary() {
         const progressParagraph = document.createElement('p');
         progressParagraph.className = 'progress-text';
         progressParagraph.textContent = `${bookName} : 문제수 ${totalProblems}, 풀이완료 ${completedProblems}, 정답률 ${correctRate}%`;
+
+        // 현재 선택된 Book이면 볼드체로 표시
+        if (bookName === selectedBook) {
+            progressParagraph.style.fontWeight = 'bold';
+        }
 
         progressSummaryContainer.appendChild(progressParagraph);
     });
